@@ -147,31 +147,42 @@ public class FileConfigPanel extends JPanel {
         SwingWorker<List<String>, Void> worker = new SwingWorker<List<String>, Void>() {
             @Override
             protected List<String> doInBackground() throws Exception {
-                // This is executed in a background thread
-                return ExcelReader.getSheetNames(selectedFile.getAbsolutePath());
+                System.out.println("SheetLoader: Starting background task.");
+                String filePath = selectedFile.getAbsolutePath();
+                System.out.println("SheetLoader: Reading file: " + filePath);
+                List<String> sheetNames = ExcelReader.getSheetNames(filePath);
+                System.out.println("SheetLoader: Found " + sheetNames.size() + " sheets.");
+                return sheetNames;
             }
 
             @Override
             protected void done() {
-                // This is executed on the Event Dispatch Thread
+                System.out.println("SheetLoader: Background task finished. Updating UI.");
+                sheetCombo.setEnabled(true);
+                setCursor(Cursor.getDefaultCursor());
+                sheetCombo.removeAllItems(); // Clear "Loading..." message
+
                 try {
                     List<String> sheetNames = get();
-                    sheetCombo.removeAllItems();
-                    for (String name : sheetNames) {
-                        sheetCombo.addItem(name);
-                    }
-                    if (!sheetNames.isEmpty()) {
+                    if (sheetNames.isEmpty()) {
+                        System.out.println("SheetLoader: No sheets found or loaded.");
+                        sheetCombo.addItem("No sheets found in file");
+                    } else {
+                        System.out.println("SheetLoader: Populating dropdown with " + sheetNames.size() + " sheets.");
+                        for (String name : sheetNames) {
+                            sheetCombo.addItem(name);
+                        }
                         sheetCombo.setSelectedIndex(0);
                         loadHeadersForFilter();
                     }
                 } catch (Exception e) {
-                    sheetCombo.removeAllItems(); // Clear "Loading..." message
-                    sheetCombo.addItem("Failed to load sheets");
-                    JOptionPane.showMessageDialog(parent, "Error reading sheets from file: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                    e.printStackTrace(); // For developer debugging
-                } finally {
-                    sheetCombo.setEnabled(true);
-                    setCursor(Cursor.getDefaultCursor());
+                    System.err.println("SheetLoader: Error getting sheets from background task.");
+                    e.printStackTrace();
+                    sheetCombo.addItem("Error loading sheets!");
+                    String errorMessage = "An error occurred while reading the Excel file:\n" +
+                            e.getClass().getSimpleName() + ": " + e.getMessage() + "\n\n" +
+                            "Please ensure the file is a valid, unencrypted Excel file and that you have permission to read it.";
+                    JOptionPane.showMessageDialog(parent, errorMessage, "Error Reading File", JOptionPane.ERROR_MESSAGE);
                 }
             }
         };
