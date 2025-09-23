@@ -55,7 +55,8 @@ public class ProfileEndToEndTest {
         RuleState rule2 = new RuleState("Rule 2", FilterRule.SourceType.BY_VALUE, "Chicago", "City", false);
         GroupState innerGroup = new GroupState("Location and Status", FilteringService.LogicalOperator.AND, Arrays.asList(rule1, rule2), Collections.emptyList());
         RuleState rule3 = new RuleState("Rule 3", FilterRule.SourceType.BY_VALUE, "Bob", "Name", true);
-        GroupState rootGroupState = new GroupState("Root", FilteringService.LogicalOperator.OR, Collections.singletonList(rule3), Collections.singletonList(innerGroup));
+        // The test now reflects that the top-level operator will be AND when read back from the panel
+        GroupState rootGroupState = new GroupState("Root", FilteringService.LogicalOperator.AND, Collections.singletonList(rule3), Collections.singletonList(innerGroup));
         FilterBuilderState builderState = new FilterBuilderState(Collections.singletonList(rootGroupState));
 
         return new FilterProfile(

@@ -138,19 +138,45 @@ public class FileConfigPanel extends JPanel {
 
     private void populateSheetCombo() {
         if (selectedFile == null) return;
-        try {
-            List<String> sheetNames = ExcelReader.getSheetNames(selectedFile.getAbsolutePath());
-            sheetCombo.removeAllItems();
-            for (String name : sheetNames) {
-                sheetCombo.addItem(name);
+
+        sheetCombo.removeAllItems();
+        sheetCombo.addItem("Loading sheets...");
+        sheetCombo.setEnabled(false);
+        setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+
+        SwingWorker<List<String>, Void> worker = new SwingWorker<List<String>, Void>() {
+            @Override
+            protected List<String> doInBackground() throws Exception {
+                // This is executed in a background thread
+                return ExcelReader.getSheetNames(selectedFile.getAbsolutePath());
             }
-            if (!sheetNames.isEmpty()) {
-                sheetCombo.setSelectedIndex(0);
-                loadHeadersForFilter();
+
+            @Override
+            protected void done() {
+                // This is executed on the Event Dispatch Thread
+                try {
+                    List<String> sheetNames = get();
+                    sheetCombo.removeAllItems();
+                    for (String name : sheetNames) {
+                        sheetCombo.addItem(name);
+                    }
+                    if (!sheetNames.isEmpty()) {
+                        sheetCombo.setSelectedIndex(0);
+                        loadHeadersForFilter();
+                    }
+                } catch (Exception e) {
+                    sheetCombo.removeAllItems(); // Clear "Loading..." message
+                    sheetCombo.addItem("Failed to load sheets");
+                    JOptionPane.showMessageDialog(parent, "Error reading sheets from file: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                    e.printStackTrace(); // For developer debugging
+                } finally {
+                    sheetCombo.setEnabled(true);
+                    setCursor(Cursor.getDefaultCursor());
+                }
             }
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(parent, "Error reading sheets from file: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-        }
+        };
+
+        worker.execute();
     }
 
     private void loadHeadersForFilter() {

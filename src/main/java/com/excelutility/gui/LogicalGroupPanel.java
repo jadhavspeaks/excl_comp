@@ -23,15 +23,15 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
     private final JPanel contentPanel;
     private final JButton addRuleButton;
     private final JLabel recordCountLabel;
-    private FilteringService.LogicalOperator operator = FilteringService.LogicalOperator.AND; // The single source of truth
 
     /**
-     * A purely visual panel for the AND/OR radio buttons between components.
-     * Its state is controlled by the parent LogicalGroupPanel.
+     * An independent panel for the AND/OR radio buttons between components.
+     * Its state is self-contained.
      */
-    private class InfixOperatorPanel extends JPanel {
+    public class InfixOperatorPanel extends JPanel {
         private final JRadioButton andButton;
         private final JRadioButton orButton;
+        private FilteringService.LogicalOperator operator;
 
         public InfixOperatorPanel() {
             super(new FlowLayout(FlowLayout.CENTER, 5, 0));
@@ -44,15 +44,24 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
             add(andButton);
             add(orButton);
 
-            // Add listeners to update the PARENT's operator
+            // Add listeners to update THIS panel's operator
             andButton.addActionListener(e -> setOperator(FilteringService.LogicalOperator.AND));
             orButton.addActionListener(e -> setOperator(FilteringService.LogicalOperator.OR));
 
+            setOperator(FilteringService.LogicalOperator.AND); // Default to AND
+        }
+
+        public FilteringService.LogicalOperator getOperator() {
+            return operator;
+        }
+
+        public void setOperator(FilteringService.LogicalOperator operator) {
+            this.operator = operator;
             updateAppearance();
         }
 
-        public void updateAppearance() {
-            boolean isAnd = (getOperator() == FilteringService.LogicalOperator.AND);
+        private void updateAppearance() {
+            boolean isAnd = (operator == FilteringService.LogicalOperator.AND);
             andButton.setSelected(isAnd);
             orButton.setSelected(!isAnd);
 
@@ -95,20 +104,6 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
 
         contentPanel = new JPanel(new MigLayout("insets 5 10 5 10, fillx, wrap 1", "[grow]"));
         add(contentPanel, "growx");
-    }
-
-    public FilteringService.LogicalOperator getOperator() {
-        return this.operator;
-    }
-
-    public void setOperator(FilteringService.LogicalOperator operator) {
-        this.operator = operator;
-        // Update all child operator panels to reflect the new state
-        for (Component comp : contentPanel.getComponents()) {
-            if (comp instanceof InfixOperatorPanel) {
-                ((InfixOperatorPanel) comp).updateAppearance();
-            }
-        }
     }
 
     @Override
@@ -172,12 +167,45 @@ public class LogicalGroupPanel extends JPanel implements ExpressionNodeComponent
 
     @Override
     public FilterExpression getExpression() {
-        GroupNode groupNode = new GroupNode(getOperator(), getName());
-        Arrays.stream(contentPanel.getComponents())
-                .filter(c -> c instanceof ExpressionNodeComponent)
-                .map(c -> ((ExpressionNodeComponent) c).getExpression())
-                .forEach(groupNode::addChild);
-        return groupNode;
+        List<Component> components = Arrays.asList(contentPanel.getComponents());
+        List<ExpressionNodeComponent> rules = new ArrayList<>();
+        List<InfixOperatorPanel> operators = new ArrayList<>();
+
+        for (Component comp : components) {
+            if (comp instanceof ExpressionNodeComponent) {
+                rules.add((ExpressionNodeComponent) comp);
+            } else if (comp instanceof InfixOperatorPanel) {
+                operators.add((InfixOperatorPanel) comp);
+            }
+        }
+
+        if (rules.isEmpty()) {
+            return new GroupNode(FilteringService.LogicalOperator.AND, getName()); // Empty group
+        }
+
+        FilterExpression expressionToWrap;
+        if (rules.size() == 1) {
+            expressionToWrap = rules.get(0).getExpression();
+        } else {
+            // Build the expression tree, respecting the order of operations.
+        // We'll build it left-associatively: (R1 op1 R2) op2 R3 ...
+        FilterExpression left = rules.get(0).getExpression();
+        for (int i = 0; i < operators.size(); i++) {
+            InfixOperatorPanel opPanel = operators.get(i);
+            FilterExpression right = rules.get(i + 1).getExpression();
+            GroupNode newGroup = new GroupNode(opPanel.getOperator(), "implicit_group");
+            newGroup.addChild(left);
+            newGroup.addChild(right);
+            left = newGroup;
+        }
+            expressionToWrap = left;
+        }
+
+        // The final expression is the root of our constructed tree.
+        // We wrap it in one final GroupNode that has the name of this panel.
+        GroupNode finalGroup = new GroupNode(FilteringService.LogicalOperator.AND, getName()); // Operator here is irrelevant
+        finalGroup.addChild(expressionToWrap);
+        return finalGroup;
     }
 
     public JButton getAddRuleButton() {
