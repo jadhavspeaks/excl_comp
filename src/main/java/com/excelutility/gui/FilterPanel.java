@@ -234,15 +234,32 @@ public class FilterPanel extends JPanel {
         }
 
         Map<String, FilterExpression> expressions = new java.util.LinkedHashMap<>();
-        for (java.awt.Component comp : filterExpressionBuilderPanel.getRootGroup().getComponents()) {
+        LogicalGroupPanel rootGroup = filterExpressionBuilderPanel.getRootGroup();
+
+        // First, find all explicit sub-groups inside the root group
+        for (java.awt.Component comp : rootGroup.getContentPanel().getComponents()) {
             if (comp instanceof LogicalGroupPanel) {
                 LogicalGroupPanel groupPanel = (LogicalGroupPanel) comp;
-                expressions.put(groupPanel.getName(), groupPanel.getExpression());
+                com.excelutility.core.expression.GroupNode groupExpression = (com.excelutility.core.expression.GroupNode) groupPanel.getExpression();
+                // Only add non-empty groups to the export list
+                if (!groupExpression.getChildren().isEmpty()) {
+                    expressions.put(groupPanel.getName(), groupExpression);
+                }
             }
         }
 
+        // If no explicit groups were found, check if the root group itself contains any rules.
         if (expressions.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "No filter groups to export.", "Export Error", JOptionPane.WARNING_MESSAGE);
+            com.excelutility.core.expression.GroupNode rootExpression = (com.excelutility.core.expression.GroupNode) rootGroup.getExpression();
+            if (!rootExpression.getChildren().isEmpty()) {
+                // If the root has rules but no named sub-groups, export the whole thing as one sheet.
+                expressions.put("Filtered Results", rootExpression);
+            }
+        }
+
+        // Final check if there's anything to export
+        if (expressions.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No filters to export. Add rules or groups to the builder.", "Export Error", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
