@@ -245,4 +245,45 @@ public class FilteringService {
 
         return results;
     }
+    public java.util.Map<String, List<List<Object>>> filterMultipleInverse(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, java.util.Map<String, com.excelutility.core.expression.FilterExpression> expressions) throws IOException, org.apache.poi.openxml4j.exceptions.InvalidFormatException {
+        // Read the source data once to avoid repeated file access.
+        List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, false);
+        if (allData.isEmpty() || expressions.isEmpty()) {
+            return new java.util.LinkedHashMap<>();
+        }
+
+        // Prepare the header.
+        List<String> header;
+        try (Workbook workbook = WorkbookFactory.create(new File(dataFilePath))) {
+            Sheet sheet = workbook.getSheet(sheetName);
+            header = CanonicalNameBuilder.buildCanonicalHeaders(sheet, dataHeaderRows, dataConcatMode, " | ");
+        }
+        List<Object> headerObjectList = new ArrayList<>(header);
+
+        // Initialize the results map, with each sheet containing the header row.
+        java.util.Map<String, List<List<Object>>> results = new java.util.LinkedHashMap<>();
+        for (String name : expressions.keySet()) {
+            List<List<Object>> sheetData = new ArrayList<>();
+            sheetData.add(headerObjectList);
+            results.put(name, sheetData);
+        }
+
+        // Determine where the actual data begins.
+        int dataStartRow = dataHeaderRows.isEmpty() ? 1 : dataHeaderRows.stream().max(Integer::compareTo).get() + 1;
+        List<List<Object>> dataRows = allData.subList(dataStartRow, allData.size());
+
+        // Process each data row against all expressions.
+        for (List<Object> row : dataRows) {
+            for (java.util.Map.Entry<String, com.excelutility.core.expression.FilterExpression> entry : expressions.entrySet()) {
+                String name = entry.getKey();
+                com.excelutility.core.expression.FilterExpression expression = entry.getValue();
+
+                if (!expression.evaluate(row, header, this)) {
+                    results.get(name).add(row);
+                }
+            }
+        }
+
+        return results;
+    }
 }

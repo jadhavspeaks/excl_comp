@@ -251,4 +251,31 @@ public class FilteringServiceTest {
         assertEquals(2, filteredRows.size()); // Header + 1 row
         assertEquals("A1", filteredRows.get(1).get(0));
     }
+    @Test
+    void testFilterMultipleInverse() throws Exception {
+        // Expression: City is "New York" (should match Alice and Charlie)
+        GroupNode expression = new GroupNode(FilteringService.LogicalOperator.AND, "New York Users");
+        expression.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", true)));
+
+        java.util.Map<String, com.excelutility.core.expression.FilterExpression> expressions = new java.util.LinkedHashMap<>();
+        expressions.put("Non-New York", expression);
+
+        // We expect the inverse: Bob, David, Eve, Frank (4 rows)
+        java.util.Map<String, List<List<Object>>> results = filteringService.filterMultipleInverse(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, expressions);
+
+        assertNotNull(results);
+        assertEquals(1, results.size());
+        assertTrue(results.containsKey("Non-New York"));
+
+        List<List<Object>> nonMatchingRows = results.get("Non-New York");
+        assertEquals(5, nonMatchingRows.size()); // Header + 4 non-matching rows
+
+        List<String> names = nonMatchingRows.stream().skip(1).map(row -> (String) row.get(1)).collect(Collectors.toList());
+        assertFalse(names.contains("Alice"));
+        assertFalse(names.contains("Charlie"));
+        assertTrue(names.contains("Bob"));
+        assertTrue(names.contains("David"));
+        assertTrue(names.contains("Eve"));
+        assertTrue(names.contains("Frank"));
+    }
 }
