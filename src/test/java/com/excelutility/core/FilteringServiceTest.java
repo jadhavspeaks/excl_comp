@@ -252,30 +252,35 @@ public class FilteringServiceTest {
         assertEquals("A1", filteredRows.get(1).get(0));
     }
     @Test
-    void testFilterMultipleInverse() throws Exception {
-        // Expression: City is "New York" (should match Alice and Charlie)
+    void testGetMatchingAndNonMatching() throws Exception {
+        // Expression: City is "New York"
         GroupNode expression = new GroupNode(FilteringService.LogicalOperator.AND, "New York Users");
         expression.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", true)));
 
         java.util.Map<String, com.excelutility.core.expression.FilterExpression> expressions = new java.util.LinkedHashMap<>();
-        expressions.put("Non-New York", expression);
+        expressions.put("New York Filter", expression);
 
-        // We expect the inverse: Bob, David, Eve, Frank (4 rows)
-        java.util.Map<String, List<List<Object>>> results = filteringService.filterMultipleInverse(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, expressions);
+        java.util.Map<String, List<List<Object>>> results = filteringService.getMatchingAndNonMatching(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, expressions);
 
         assertNotNull(results);
-        assertEquals(1, results.size());
-        assertTrue(results.containsKey("Non-New York"));
+        assertEquals(2, results.size());
+        assertTrue(results.containsKey("New York Filter (Matches)"));
+        assertTrue(results.containsKey("New York Filter (Non-Matches)"));
 
-        List<List<Object>> nonMatchingRows = results.get("Non-New York");
-        assertEquals(5, nonMatchingRows.size()); // Header + 4 non-matching rows
+        // Check matching rows
+        List<List<Object>> matchingRows = results.get("New York Filter (Matches)");
+        assertEquals(3, matchingRows.size()); // Header + Alice + Charlie
+        List<String> matchingNames = matchingRows.stream().skip(1).map(row -> (String) row.get(1)).collect(Collectors.toList());
+        assertTrue(matchingNames.contains("Alice"));
+        assertTrue(matchingNames.contains("Charlie"));
 
-        List<String> names = nonMatchingRows.stream().skip(1).map(row -> (String) row.get(1)).collect(Collectors.toList());
-        assertFalse(names.contains("Alice"));
-        assertFalse(names.contains("Charlie"));
-        assertTrue(names.contains("Bob"));
-        assertTrue(names.contains("David"));
-        assertTrue(names.contains("Eve"));
-        assertTrue(names.contains("Frank"));
+        // Check non-matching rows
+        List<List<Object>> nonMatchingRows = results.get("New York Filter (Non-Matches)");
+        assertEquals(5, nonMatchingRows.size()); // Header + Bob + David + Eve + Frank
+        List<String> nonMatchingNames = nonMatchingRows.stream().skip(1).map(row -> (String) row.get(1)).collect(Collectors.toList());
+        assertTrue(nonMatchingNames.contains("Bob"));
+        assertTrue(nonMatchingNames.contains("David"));
+        assertTrue(nonMatchingNames.contains("Eve"));
+        assertTrue(nonMatchingNames.contains("Frank"));
     }
 }

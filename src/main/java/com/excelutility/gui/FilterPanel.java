@@ -109,8 +109,6 @@ public class FilterPanel extends JPanel {
         actionPanel.add(viewButton);
         actionPanel.add(totalMatchesLabel, "gaptop 5");
         actionPanel.add(downloadButton, "gaptop 10");
-        JButton downloadNonMatchingButton = new JButton("Download Non-Matching Results");
-        actionPanel.add(downloadNonMatchingButton);
         actionPanel.add(colorButton);
         JButton exitButton = new JButton("Exit");
         actionPanel.add(exitButton, "gaptop 20, align right");
@@ -120,7 +118,6 @@ public class FilterPanel extends JPanel {
         previewButton.addActionListener(e -> loadPreviews());
         colorButton.addActionListener(e -> chooseColor());
         downloadButton.addActionListener(e -> startMultiSheetExportProcess());
-        downloadNonMatchingButton.addActionListener(e -> startNonMatchingExportProcess());
         viewButton.addActionListener(e -> startFilterProcess(ProcessDestination.VIEW));
         calculateButton.addActionListener(e -> startFilterProcess(ProcessDestination.CALCULATE_ONLY));
         exitButton.addActionListener(e -> exitApplication());
@@ -282,7 +279,7 @@ public class FilterPanel extends JPanel {
             new SwingWorker<Void, Void>() {
                 @Override
                 protected Void doInBackground() throws Exception {
-                    Map<String, List<List<Object>>> filteredData = filteringService.filterMultiple(
+                    Map<String, List<List<Object>>> filteredData = filteringService.getMatchingAndNonMatching(
                             dataFilePath,
                             sheetName,
                             dataFilePanel.getHeaderRowIndices(),
@@ -719,83 +716,5 @@ public class FilterPanel extends JPanel {
                 }
             }
         }.execute();
-    }
-    private void startNonMatchingExportProcess() {
-        String dataFilePath = dataFilePanel.getFilePath();
-        String sheetName = dataFilePanel.getSelectedSheet();
-        if (dataFilePath == null || dataFilePath.trim().isEmpty() || sheetName == null) {
-            JOptionPane.showMessageDialog(this, "Please select a data file and sheet first.", "Data File Required", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        Map<String, FilterExpression> expressions = new java.util.LinkedHashMap<>();
-        LogicalGroupPanel rootGroup = filterExpressionBuilderPanel.getRootGroup();
-
-        // First, find all explicit sub-groups inside the root group
-        for (java.awt.Component comp : rootGroup.getContentPanel().getComponents()) {
-            if (comp instanceof LogicalGroupPanel) {
-                LogicalGroupPanel groupPanel = (LogicalGroupPanel) comp;
-                com.excelutility.core.expression.GroupNode groupExpression = (com.excelutility.core.expression.GroupNode) groupPanel.getExpression();
-                // Only add non-empty groups to the export list
-                if (!groupExpression.getChildren().isEmpty()) {
-                    expressions.put(groupPanel.getName(), groupExpression);
-                }
-            }
-        }
-
-        // If no explicit groups were found, check if the root group itself contains any rules.
-        if (expressions.isEmpty()) {
-            com.excelutility.core.expression.GroupNode rootExpression = (com.excelutility.core.expression.GroupNode) rootGroup.getExpression();
-            if (!rootExpression.getChildren().isEmpty()) {
-                // If the root has rules but no named sub-groups, export the whole thing as one sheet.
-                expressions.put("Non-Matching Results", rootExpression);
-            }
-        }
-
-        // Final check if there's anything to export
-        if (expressions.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "No filters to export. Add rules or groups to the builder.", "Export Error", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        JFileChooser chooser = new JFileChooser();
-        chooser.setDialogTitle("Save Non-Matching Results Export");
-        chooser.setFileFilter(new FileNameExtensionFilter("Excel Workbook (*.xlsx)", "xlsx"));
-        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
-
-        if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-            File fileToSave = chooser.getSelectedFile();
-            String filePath = fileToSave.getAbsolutePath();
-            if (!filePath.toLowerCase().endsWith(".xlsx")) {
-                filePath += ".xlsx";
-            }
-            final String finalFilePath = filePath;
-
-            new SwingWorker<Void, Void>() {
-                @Override
-                protected Void doInBackground() throws Exception {
-                    Map<String, List<List<Object>>> filteredData = filteringService.filterMultipleInverse(
-                            dataFilePath,
-                            sheetName,
-                            dataFilePanel.getHeaderRowIndices(),
-                            dataFilePanel.getConcatenationMode(),
-                            expressions
-                    );
-                    SimpleExcelWriter.writeFilteredResults(finalFilePath, filteredData, true, selectedColor);
-                    return null;
-                }
-
-                @Override
-                protected void done() {
-                    try {
-                        get();
-                        JOptionPane.showMessageDialog(FilterPanel.this, "Non-matching results export completed successfully!", "Export Complete", JOptionPane.INFORMATION_MESSAGE);
-                    } catch (Exception e) {
-                        logger.error("Non-matching results export failed.", e);
-                        JOptionPane.showMessageDialog(FilterPanel.this, "Failed to export non-matching results: " + e.getCause().getMessage(), "Export Error", JOptionPane.ERROR_MESSAGE);
-                    }
-                }
-            }.execute();
-        }
     }
 }
