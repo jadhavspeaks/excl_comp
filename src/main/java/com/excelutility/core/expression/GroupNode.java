@@ -38,9 +38,13 @@ public class GroupNode implements FilterExpression {
 
     @Override
     public String getDescriptiveName() {
-        // For a group, the name is descriptive enough.
-        // A more complex implementation could show child expressions.
-        return name;
+        if (children.isEmpty()) {
+            return "()";
+        }
+        String separator = " " + operator.name() + " ";
+        return children.stream()
+                .map(FilterExpression::getDescriptiveName)
+                .collect(java.util.stream.Collectors.joining(separator, "(", ")"));
     }
 
     public List<FilterExpression> getChildren() {
