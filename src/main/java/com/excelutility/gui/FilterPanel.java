@@ -279,6 +279,14 @@ public class FilterPanel extends JPanel {
             new SwingWorker<Void, Void>() {
                 @Override
                 protected Void doInBackground() throws Exception {
+                    // Generate the summary sheet data first
+                    List<List<Object>> summaryData = new ArrayList<>();
+                    summaryData.add(List.of("Filter Group", "Filter Logic"));
+                    for (Map.Entry<String, FilterExpression> entry : expressions.entrySet()) {
+                        summaryData.add(List.of(entry.getKey(), entry.getValue().getDescriptiveName()));
+                    }
+
+                    // Get the filtered data
                     Map<String, List<List<Object>>> filteredData = filteringService.getMatchingAndNonMatching(
                             dataFilePath,
                             sheetName,
@@ -286,6 +294,10 @@ public class FilterPanel extends JPanel {
                             dataFilePanel.getConcatenationMode(),
                             expressions
                     );
+
+                    // Add the summary sheet to the results
+                    filteredData.put("Filter Summary", summaryData);
+
                     SimpleExcelWriter.writeFilteredResults(finalFilePath, filteredData, true, selectedColor);
                     return null;
                 }
