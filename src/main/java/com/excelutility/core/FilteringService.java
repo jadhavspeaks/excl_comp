@@ -204,14 +204,12 @@ public class FilteringService {
         return results;
     }
 
-    public java.util.Map<String, List<List<Object>>> getMatchingAndNonMatching(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, java.util.Map<String, com.excelutility.core.expression.FilterExpression> expressions) throws IOException, org.apache.poi.openxml4j.exceptions.InvalidFormatException {
-        // Read the source data once to avoid repeated file access.
+    public java.util.Map<String, List<List<Object>>> getUnifiedFilteredData(String dataFilePath, String sheetName, List<Integer> dataHeaderRows, ConcatenationMode dataConcatMode, com.excelutility.core.expression.FilterExpression expression) throws IOException, org.apache.poi.openxml4j.exceptions.InvalidFormatException {
         List<List<Object>> allData = ExcelReader.read(dataFilePath, sheetName, false);
-        if (allData.isEmpty() || expressions.isEmpty()) {
+        if (allData.isEmpty()) {
             return new java.util.LinkedHashMap<>();
         }
 
-        // Prepare the header.
         List<String> header;
         try (Workbook workbook = WorkbookFactory.create(new File(dataFilePath))) {
             Sheet sheet = workbook.getSheet(sheetName);
@@ -219,35 +217,26 @@ public class FilteringService {
         }
         List<Object> headerObjectList = new ArrayList<>(header);
 
-        // Initialize the results map. For each expression, create two sheets.
-        java.util.Map<String, List<List<Object>>> results = new java.util.LinkedHashMap<>();
-        for (String name : expressions.keySet()) {
-            List<List<Object>> matchingSheet = new ArrayList<>();
-            matchingSheet.add(headerObjectList);
-            results.put(name + " (Matches)", matchingSheet);
+        List<List<Object>> matchingRows = new ArrayList<>();
+        matchingRows.add(headerObjectList);
+        List<List<Object>> nonMatchingRows = new ArrayList<>();
+        nonMatchingRows.add(headerObjectList);
 
-            List<List<Object>> nonMatchingSheet = new ArrayList<>();
-            nonMatchingSheet.add(headerObjectList);
-            results.put(name + " (Non-Matches)", nonMatchingSheet);
-        }
-
-        // Determine where the actual data begins.
         int dataStartRow = dataHeaderRows.isEmpty() ? 1 : dataHeaderRows.stream().max(Integer::compareTo).get() + 1;
         List<List<Object>> dataRows = allData.subList(dataStartRow, allData.size());
 
-        // Process each data row against all expressions.
         for (List<Object> row : dataRows) {
-            for (java.util.Map.Entry<String, com.excelutility.core.expression.FilterExpression> entry : expressions.entrySet()) {
-                String name = entry.getKey();
-                com.excelutility.core.expression.FilterExpression expression = entry.getValue();
-
-                if (expression.evaluate(row, header, this)) {
-                    results.get(name + " (Matches)").add(row);
-                } else {
-                    results.get(name + " (Non-Matches)").add(row);
-                }
+            if (expression.evaluate(row, header, this)) {
+                matchingRows.add(row);
+            } else {
+                nonMatchingRows.add(row);
             }
         }
+
+        java.util.Map<String, List<List<Object>>> results = new java.util.LinkedHashMap<>();
+        results.put("matching", matchingRows);
+        results.put("non matching", nonMatchingRows);
+        results.put("unified", allData);
 
         return results;
     }

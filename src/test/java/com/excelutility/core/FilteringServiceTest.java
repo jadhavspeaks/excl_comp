@@ -252,35 +252,37 @@ public class FilteringServiceTest {
         assertEquals("A1", filteredRows.get(1).get(0));
     }
     @Test
-    void testGetMatchingAndNonMatching() throws Exception {
+    void testGetUnifiedFilteredData() throws Exception {
         // Expression: City is "New York"
         GroupNode expression = new GroupNode(FilteringService.LogicalOperator.AND, "New York Users");
         expression.addChild(new RuleNode(new FilterRule(FilterRule.SourceType.BY_VALUE, "New York", "City", true)));
 
-        java.util.Map<String, com.excelutility.core.expression.FilterExpression> expressions = new java.util.LinkedHashMap<>();
-        expressions.put("New York Filter", expression);
-
-        java.util.Map<String, List<List<Object>>> results = filteringService.getMatchingAndNonMatching(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, expressions);
+        java.util.Map<String, List<List<Object>>> results = filteringService.getUnifiedFilteredData(dataFilePath, "Sheet1", Collections.singletonList(0), ConcatenationMode.LEAF_ONLY, expression);
 
         assertNotNull(results);
-        assertEquals(2, results.size());
-        assertTrue(results.containsKey("New York Filter (Matches)"));
-        assertTrue(results.containsKey("New York Filter (Non-Matches)"));
+        assertEquals(3, results.size());
+        assertTrue(results.containsKey("matching"));
+        assertTrue(results.containsKey("non matching"));
+        assertTrue(results.containsKey("unified"));
 
         // Check matching rows
-        List<List<Object>> matchingRows = results.get("New York Filter (Matches)");
+        List<List<Object>> matchingRows = results.get("matching");
         assertEquals(3, matchingRows.size()); // Header + Alice + Charlie
         List<String> matchingNames = matchingRows.stream().skip(1).map(row -> (String) row.get(1)).collect(Collectors.toList());
         assertTrue(matchingNames.contains("Alice"));
         assertTrue(matchingNames.contains("Charlie"));
 
         // Check non-matching rows
-        List<List<Object>> nonMatchingRows = results.get("New York Filter (Non-Matches)");
+        List<List<Object>> nonMatchingRows = results.get("non matching");
         assertEquals(5, nonMatchingRows.size()); // Header + Bob + David + Eve + Frank
         List<String> nonMatchingNames = nonMatchingRows.stream().skip(1).map(row -> (String) row.get(1)).collect(Collectors.toList());
         assertTrue(nonMatchingNames.contains("Bob"));
         assertTrue(nonMatchingNames.contains("David"));
         assertTrue(nonMatchingNames.contains("Eve"));
         assertTrue(nonMatchingNames.contains("Frank"));
+
+        // Check unified data
+        List<List<Object>> unifiedRows = results.get("unified");
+        assertEquals(7, unifiedRows.size()); // Header + 6 original rows
     }
 }

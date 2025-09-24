@@ -233,32 +233,10 @@ public class FilterPanel extends JPanel {
             return;
         }
 
-        Map<String, FilterExpression> expressions = new java.util.LinkedHashMap<>();
-        LogicalGroupPanel rootGroup = filterExpressionBuilderPanel.getRootGroup();
-
-        // First, find all explicit sub-groups inside the root group
-        for (java.awt.Component comp : rootGroup.getContentPanel().getComponents()) {
-            if (comp instanceof LogicalGroupPanel) {
-                LogicalGroupPanel groupPanel = (LogicalGroupPanel) comp;
-                com.excelutility.core.expression.GroupNode groupExpression = (com.excelutility.core.expression.GroupNode) groupPanel.getExpression();
-                // Only add non-empty groups to the export list
-                if (!groupExpression.getChildren().isEmpty()) {
-                    expressions.put(groupPanel.getName(), groupExpression);
-                }
-            }
-        }
-
-        // If no explicit groups were found, check if the root group itself contains any rules.
-        if (expressions.isEmpty()) {
-            com.excelutility.core.expression.GroupNode rootExpression = (com.excelutility.core.expression.GroupNode) rootGroup.getExpression();
-            if (!rootExpression.getChildren().isEmpty()) {
-                // If the root has rules but no named sub-groups, export the whole thing as one sheet.
-                expressions.put("Filtered Results", rootExpression);
-            }
-        }
+        final FilterExpression expression = filterExpressionBuilderPanel.getRootGroup().getExpression();
 
         // Final check if there's anything to export
-        if (expressions.isEmpty()) {
+        if (expression == null || (expression instanceof com.excelutility.core.expression.GroupNode && ((com.excelutility.core.expression.GroupNode) expression).getChildren().isEmpty())) {
             JOptionPane.showMessageDialog(this, "No filters to export. Add rules or groups to the builder.", "Export Error", JOptionPane.WARNING_MESSAGE);
             return;
         }
@@ -279,24 +257,20 @@ public class FilterPanel extends JPanel {
             new SwingWorker<Void, Void>() {
                 @Override
                 protected Void doInBackground() throws Exception {
-                    // Generate the summary sheet data first
-                    List<List<Object>> summaryData = new ArrayList<>();
-                    summaryData.add(List.of("Filter Group", "Filter Logic"));
-                    for (Map.Entry<String, FilterExpression> entry : expressions.entrySet()) {
-                        summaryData.add(List.of(entry.getKey(), entry.getValue().getDescriptiveName()));
-                    }
-
                     // Get the filtered data
-                    Map<String, List<List<Object>>> filteredData = filteringService.getMatchingAndNonMatching(
+                    Map<String, List<List<Object>>> filteredData = filteringService.getUnifiedFilteredData(
                             dataFilePath,
                             sheetName,
                             dataFilePanel.getHeaderRowIndices(),
                             dataFilePanel.getConcatenationMode(),
-                            expressions
+                            expression
                     );
 
-                    // Add the summary sheet to the results
-                    filteredData.put("Filter Summary", summaryData);
+                    // Generate the summary sheet data
+                    List<List<Object>> summaryData = new ArrayList<>();
+                    summaryData.add(List.of("Filter Logic"));
+                    summaryData.add(List.of(expression.getDescriptiveName()));
+                    filteredData.put("filter rule", summaryData);
 
                     SimpleExcelWriter.writeFilteredResults(finalFilePath, filteredData, true, selectedColor);
                     return null;
