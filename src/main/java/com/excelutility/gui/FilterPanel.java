@@ -272,6 +272,9 @@ public class FilterPanel extends JPanel {
                     summaryData.add(List.of(expression.getDescriptiveName()));
                     filteredData.put("filter rule", summaryData);
 
+                    // Remove the duplicate "unified" sheet before writing
+                    filteredData.remove("unified");
+
                     SimpleExcelWriter.writeFilteredResults(finalFilePath, filteredData, true, selectedColor);
                     return null;
                 }
